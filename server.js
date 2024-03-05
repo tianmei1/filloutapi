@@ -1,23 +1,24 @@
 const express = require("express");
-const app = express();
-const PORT = process.env.PORT || 3000;
 const axios = require("axios");
 
-const getFromDataFromFillout = async (formId) => {
-  // Fillout API Info (TODO: If have additional time will store in the cloud)
-  const apiUrl = `https://api.fillout.com/v1/api/forms/${formId}/submissions`;
-  const apiKey =
-    "sk_prod_TfMbARhdgues5AuIosvvdAC9WsA5kXiZlW8HZPaRDlIbCpSpLsXBeZO7dCVZQwHAY3P4VSBPiiC33poZ1tdUj2ljOzdTCCOSpUZ_3912";
+const app = express();
+const PORT = process.env.PORT || 3000;
+const FILL_OUT_API_URL = "https://api.fillout.com/v1/api/forms";
+const FILL_OUT_API_KEY =
+  "sk_prod_TfMbARhdgues5AuIosvvdAC9WsA5kXiZlW8HZPaRDlIbCpSpLsXBeZO7dCVZQwHAY3P4VSBPiiC33poZ1tdUj2ljOzdTCCOSpUZ_3912";
 
-  // config to request form data from fillout API
-  let config = {
+// Function to fetch form data from Fillout API
+const getFormDataFromFillout = async (formId) => {
+  const apiUrl = `${FILL_OUT_API_URL}/${formId}/submissions`;
+  const config = {
     method: "get",
     maxBodyLength: Infinity,
     url: apiUrl,
     headers: {
-      Authorization: "Bearer " + apiKey,
+      Authorization: `Bearer ${FILL_OUT_API_KEY}`,
     },
   };
+
   try {
     const response = await axios.request(config);
     return response.data;
@@ -27,16 +28,13 @@ const getFromDataFromFillout = async (formId) => {
   }
 };
 
-// use for query quailft all filter condition submissions
+// Function to filter responses based on provided filters
 const filteredResponsesByFilters = (dataArray, filters) => {
   const parsedDataArray = JSON.parse(dataArray);
 
-  return parsedDataArray.filter((submission) => {
-    const questionsArray = submission.questions;
-
-    return filters.every((filter) => {
-      // Check if the filter condition is satisfied for at least one question
-      return questionsArray.some((dataItem) => {
+  return parsedDataArray.filter((submission) =>
+    filters.every((filter) =>
+      submission.questions.some((dataItem) => {
         if (filter.id === dataItem.id) {
           const dataValue =
             dataItem.type === "DatePicker"
@@ -57,42 +55,34 @@ const filteredResponsesByFilters = (dataArray, filters) => {
             case "less_than":
               return dataValue < filterValue;
             default:
-              return false; // Default to false if condition is not recognized
+              return false;
           }
         }
-        return false; // Default to false if no matching question is found
-      });
-    });
-  });
+        return false;
+      })
+    )
+  );
 };
 
-// Here is our filter response API endpoint
+// Endpoint to filter responses based on form ID and provided filters
 app.get("/:formId/filteredResponses", async (req, res) => {
   const formId = req.params.formId;
-  // filter formta like this:
-  //   [{
-  //       id: "bE2Bo4cGUv49cjnqZ4UnkW",
-  //       condition: "equals",
-  //       value: "Johnny",
-  //     },
-  //     {
-  //       id: "dSRAe3hygqVwTpPK69p5td",
-  //       condition: "greater_than",
-  //       value: "2024-01-23T05:01:47.691Z",
-  //     },
-  //   ]
-  const filters = JSON.parse(JSON.stringify(req.query.filters));
-  // logic for fetching and filtering responses goes here
+  // Parse filters from query string; default to an empty array if not provided
+  const filters = req.query.filters ? JSON.parse(req.query.filters) : [];
+
   try {
-    const response = await getFromDataFromFillout(formId);
+    // Fetch form data from Fillout API
+    const response = await getFormDataFromFillout(formId);
+    // Filter responses based on provided filters
     const filterSubmissions = filteredResponsesByFilters(
       JSON.stringify(response.responses),
       filters
     );
 
+    // Respond with filtered data
     res.json({
       message: `Fetching responses for form ID ${formId} with filters`,
-      filters: req.query.filters,
+      filters,
       responses: filterSubmissions,
     });
   } catch (error) {
@@ -101,6 +91,7 @@ app.get("/:formId/filteredResponses", async (req, res) => {
   }
 });
 
+// Start the server
 app.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
 });
