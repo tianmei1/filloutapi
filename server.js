@@ -68,7 +68,9 @@ const filteredResponsesByFilters = (dataArray, filters) => {
 app.get("/:formId/filteredResponses", async (req, res) => {
   const formId = req.params.formId;
   // Parse filters from query string; default to an empty array if not provided
-  const filters = req.query.filters ? JSON.parse(req.query.filters) : [];
+  const filters = req.query.filters
+    ? JSON.parse(JSON.stringify(req.query.filters))
+    : [];
 
   try {
     // Fetch form data from Fillout API
